@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>风语画笺 · 拾光查看器 / WindDrawer Viewer</title>
+    <link rel="icon" type="image/png" href="/static/favicon.png" />
+    <style>
+        :root {
+            --bg: #f6f7fb;
+            --panel: #ffffff;
+            --text: #111827;
+            --muted: #6b7280;
+            --accent: #ec4899;
+            --border: rgba(15, 23, 42, .08);
+            --shadow: 0 18px 40px rgba(15, 23, 42, .08);
+        }
+
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: grid;
+            grid-template-rows: 60px 1fr;
+        }
+
+        /* Topbar */
+        .topbar {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            gap: 20px;
+            z-index: 10;
+        }
+
+        .title-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo {
+            height: 32px;
+            width: 32px;
+            object-fit: contain;
+            border-radius: 6px;
+        }
+
+        .title {
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        button {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #fff;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #f9f9f9;
+            border-color: #cbd5e1;
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        /* Waterfall Layout */
+        .main {
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        .gallery {
+            display: flex;
+            align-items: flex-start;
+            gap: 24px;
+            width: 100%;
+        }
+
+        .gallery-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            min-width: 0;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+
+        .card-img-wrap {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .card img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        /* Card Details */
+        .card-details {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border-top: 1px solid var(--border);
+            background: #fff;
+        }
+
+        .detail-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .detail-label {
+            color: var(--muted);
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .detail-value {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            background: #f1f5f9;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: var(--text);
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .prompt-preview {
+            font-size: 13px;
+            color: #374151;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            background: #f9fafb;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin-top: 4px;
+            word-break: break-all;
+            cursor: pointer;
+        }
+
+        .prompt-preview:hover {
+            background: #f3f4f6;
+            color: var(--text);
+        }
+
+        .copy-btn {
+            border: none;
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+            padding: 4px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            border-radius: 4px;
+        }
+
+        .copy-btn:hover {
+            background: #f3f4f6;
+            color: var(--accent);
+        }
+
+        .card-footer {
+            margin-top: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        /* Modal */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 100;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: transparent;
+            width: 100%;
+            max-width: 1400px;
+            max-height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            overflow-y: auto;
+        }
+
+        .modal-body {
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 30px;
+            height: 100%;
+        }
+
+        @media (max-width: 900px) {
+            .modal-body {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .modal-img-stage {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            min-height: 400px;
+        }
+
+        .modal-img-stage img {
+            max-width: 100%;
+            max-height: 85vh;
+            border-radius: 8px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            width: auto;
+            height: auto;
+            object-fit: contain;
+        }
+
+        .info-panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto;
+            max-height: 85vh;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .label {
+            font-size: 11px;
+            color: var(--muted);
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+
+        .value {
+            font-size: 14px;
+            color: var(--text);
+            font-weight: 500;
+            word-break: break-all;
+        }
+
+        .value.prompt {
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            background: #f1f5f9;
+            padding: 12px;
+            border-radius: 8px;
+            line-height: 1.5;
+            font-size: 13px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #111827;
+            color: #fff;
+            padding: 10px 24px;
+            border-radius: 99px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            z-index: 200;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="toast" class="toast">Copied to clipboard!</div>
+
+    <header class="topbar">
+        <div class="title-container">
+            <img src="/static/favicon.png" class="logo" alt="Logo">
+            <div class="title">风语画笺 · 拾光查看器 (WindDrawer Viewer)</div>
+        </div>
+        <div style="flex:1"></div>
+        <button id="refreshBtn">Refresh / 刷新</button>
+    </header>
+
+    <div class="main">
+        <div id="gallery" class="gallery">
+            <!-- Cards injected via JS -->
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="modal" class="modal">
+        <button class="close-btn" id="closeModal">&times;</button>
+        <div class="modal-content">
+            <div class="modal-body">
+                <div class="modal-img-stage">
+                    <img id="modalImg" src="">
+                </div>
+                <div class="info-panel">
+                    <div class="info-item">
+                        <div class="label">Seed / 种子</div>
+                        <div style="display:flex;gap:10px;align-items:center">
+                            <div class="value" id="m-seed">-</div>
+                            <button class="copy-btn"
+                                onclick="copyText(document.getElementById('m-seed').textContent)">Copy</button>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <div class="label">Model / 模型</div>
+                        <div class="value" id="m-model">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="label">Parameters / 参数</div>
+                        <div class="value" id="m-params">-</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="label">Prompt / 提示词</div>
+                        <div style="position:relative">
+                            <div class="value prompt" id="m-prompt">-</div>
+                            <button class="copy-btn"
+                                style="position:absolute;top:5px;right:5px;background:rgba(255,255,255,0.8)"
+                                onclick="copyText(document.getElementById('m-prompt').textContent)">Copy</button>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:auto;display:flex;gap:10px;">
+                        <a id="m-download" href="#" download target="_blank" style="flex:1;display:flex">
+                            <button style="width:100%;height:40px;background:#111827;color:#fff;border:none">Download /
+                                下载原图</button>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const el = id => document.getElementById(id);
+
+        async function fetchJSON(url) {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error(res.statusText);
+            return res.json();
+        }
+
+        function showToast(msg) {
+            const t = el('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2000);
+        }
+
+        async function copyText(text) {
+            if (!text) return;
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('Copied / 已复制');
+            } catch (err) {
+                showToast('Copy Failed / 复制失败');
+            }
+        }
+
+        async function loadCardMetadata(filename, div) {
+            try {
+                const res = await fetchJSON(`/api/metadata/${encodeURIComponent(filename)}`);
+                const meta = res.metadata || {};
+                const data = meta.zimage || meta;
+
+                const seed = data.seed || meta.seed || '?';
+                const prompt = data.prompt || meta.prompt || 'No prompt';
+
+                // Update UI
+                const seedEl = div.querySelector('.seed-val');
+                seedEl.textContent = seed;
+                seedEl.onclick = (e) => { e.stopPropagation(); copyText(seed); };
+                seedEl.title = "Click to copy / 点击复制";
+
+                const promptEl = div.querySelector('.prompt-preview');
+                promptEl.textContent = prompt;
+                promptEl.onclick = (e) => { e.stopPropagation(); copyText(prompt); };
+                promptEl.title = "Click to copy / 点击复制";
+
+            } catch (e) {
+                // console.warn('Metadata load failed', filename);
+            }
+        }
+
+        function createCard(item) {
+            const div = document.createElement('div');
+            div.className = 'card';
+            div.innerHTML = `
+            <div class="card-img-wrap">
+                <img src="${item.url}?w=500" loading="lazy" alt="${item.filename}">
+            </div>
+            <div class="card-details">
+                <div class="detail-row">
+                    <div class="detail-label">Seed</div>
+                    <div class="detail-value seed-val" style="cursor:pointer;color:#ec4899">...</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;">
+                    <div class="detail-label">Prompt</div>
+                    <div class="prompt-preview">...</div>
+                </div>
+                <div class="card-footer">
+                    <span>${new Date(item.mtime * 1000).toLocaleDateString()}</span>
+                </div>
+            </div>
+        `;
+
+            div.querySelector('.card-img-wrap').addEventListener('click', () => openModal(item));
+
+            // Lazy load metadata
+            loadCardMetadata(item.filename, div);
+
+            return div;
+        }
+
+        async function openModal(item) {
+            const modal = el('modal');
+            const img = el('modalImg');
+            const dl = el('m-download');
+
+            img.src = item.url;
+            dl.href = item.url;
+            dl.download = item.filename;
+
+            modal.style.display = 'flex';
+
+            // Reset info
+            el('m-seed').textContent = '...';
+            el('m-prompt').textContent = '...';
+            el('m-model').textContent = '...';
+            el('m-params').textContent = '...';
+
+            try {
+                const res = await fetchJSON(`/api/metadata/${encodeURIComponent(item.filename)}`);
+                const meta = res.metadata || {};
+                const data = meta.zimage || meta;
+
+                el('m-seed').textContent = data.seed || meta.seed || '-';
+                el('m-model').textContent = data.diffusion_model || meta.diffusion_model || '-';
+                el('m-params').textContent = `${data.steps || '?'} steps | ${data.width}x${data.height}`;
+                el('m-prompt').textContent = data.prompt || meta.prompt || '-';
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        el('closeModal').addEventListener('click', () => {
+            el('modal').style.display = 'none';
+            el('modalImg').src = '';
+        });
+
+        el('modal').addEventListener('click', (e) => {
+            if (e.target.id === 'modal') {
+                el('modal').style.display = 'none';
+                el('modalImg').src = '';
+            }
+        });
+
+        // Masonry Logic
+        let currentItems = [];
+        let resizeTimer = null;
+
+        function renderMasonry() {
+            const gallery = el('gallery');
+            gallery.innerHTML = '';
+
+            if (!currentItems || currentItems.length === 0) {
+                gallery.innerHTML = '<div style="text-align:center;padding:40px;width:100%;color:#888;">No images found / 暂无图片</div>';
+                return;
+            }
+
+            const width = window.innerWidth;
+            let colCount = 4;
+            if (width <= 600) colCount = 1;
+            else if (width <= 1000) colCount = 2;
+            else if (width <= 1400) colCount = 3;
+
+            // Create columns
+            const cols = [];
+            for (let i = 0; i < colCount; i++) {
+                const col = document.createElement('div');
+                col.className = 'gallery-col';
+                cols.push(col);
+                gallery.appendChild(col);
+            }
+
+            // Distribute items round-robin
+            currentItems.forEach((item, index) => {
+                const colIndex = index % colCount;
+                cols[colIndex].appendChild(createCard(item));
+            });
+        }
+
+        async function loadGallery() {
+            const gallery = el('gallery');
+
+            try {
+                const res = await fetchJSON('/api/images');
+                currentItems = res.items || [];
+                if (currentItems.length === 0) {
+                    gallery.innerHTML = '<div style="text-align:center;padding:40px;width:100%;color:#888;">No images found / 暂无图片</div>';
+                    return;
+                }
+                renderMasonry();
+            } catch (e) {
+                gallery.innerHTML = `<div style="color:red;padding:20px">Error loading images / 加载失败: ${e}</div>`;
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            if (resizeTimer) clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                renderMasonry();
+            }, 100);
+        });
+
+        el('refreshBtn').addEventListener('click', loadGallery);
+
+        // Initial load
+        loadGallery();
+
+    </script>
+</body>
+
+</html>

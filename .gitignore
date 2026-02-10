@@ -1,0 +1,13 @@
+# Local model weights and outputs should never be committed
+models/
+outputs/
+
+# uv & Python virtual environment
+.venv/
+.pdm-plugins/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# uv lock file (可选：如果你希望其他人运行的版本和你完全一致，可以不忽略它)
+# uv.lock

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>风语画笺 · 影像生成工作台 / WindDrawer</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    .title-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .logo {
+      height: 32px;
+      width: 32px;
+      object-fit: contain;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+
+    .title {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="title-container">
+        <img src="/static/favicon.png" class="logo" alt="Logo">
+        <div class="title">风语画笺 (WindDrawer)</div>
+      </div>
+      <div class="controls">
+        <label class="field">
+          <span>Aspect Ratio / 画幅比例</span>
+          <select id="aspect"></select>
+        </label>
+        <label class="field">
+          <span>Model / 模型</span>
+          <select id="model"></select>
+        </label>
+        <label class="field">
+          <span>Steps / 步数</span>
+          <input id="steps" type="number" min="1" max="30" value="8" />
+        </label>
+        <label class="field">
+          <span>Batch / 张数</span>
+          <input id="batch" type="number" min="1" value="1" />
+        </label>
+        <label class="field">
+          <span>Seed / 种子</span>
+          <div class="seed-row">
+            <input id="seed" type="number" value="42" />
+            <button type="button" id="randomSeedBtn" class="secondary ghost">Rnd</button>
+          </div>
+        </label>
+        <label class="field checkbox">
+          <input id="autoSeed" type="checkbox" checked />
+          <span>Random / 自动随机</span>
+        </label>
+        <div class="button-group">
+          <button id="renderBtn" class="primary">Start Render / 开始渲染</button>
+          <button id="stopBtn" class="secondary" disabled>Stop / 停止</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="panel">
+      <div class="panel-title">Prompt / 提示词</div>
+      <textarea id="prompt"
+        rows="10">美丽汉服美少女，胸部丰满，披着轻纱，胸口上用金色的字绣着“风语幻镜”。A beautiful Hanfu girl with a full bust, draped in a translucent veil. The words "风语幻镜" (WindWhisperer Stories) are embroidered in shimmering gold on her chest.</textarea>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Real-time Log / 实时日志</div>
+      <pre id="log" class="log"></pre>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">Gallery / 生成结果</div>
+      <div id="gallery" class="gallery"></div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+
+</html>

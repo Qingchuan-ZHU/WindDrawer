@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WindDrawer 元数据查看</title>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="title">WindDrawer 元数据查看</div>
+      <div class="controls">
+        <label class="field">
+          <span>选择图片 (outputs)</span>
+          <select id="fileSelect"></select>
+        </label>
+        <div class="button-group">
+          <button id="refreshBtn" class="secondary">刷新列表</button>
+          <a class="secondary" id="backLink" href="/"
+            style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;height:46px;padding:0 24px;border-radius:14px;border:1px solid var(--border);background:#fff;color:#111827;font-size:16px;font-weight:700;">返回生图</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="panel">
+      <div class="panel-title">图片预览</div>
+      <div id="previewWrap" style="display:flex;flex-direction:column;gap:14px">
+        <img id="preview" alt="preview"
+          style="width:100%;border-radius:18px;border:1px solid var(--border);background:#fff" />
+        <div style="display:flex;gap:10px">
+          <a id="openLink" class="secondary" target="_blank" rel="noopener"
+            style="flex:1;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;height:46px;padding:0 24px;border-radius:14px;border:1px solid var(--border);background:#fff;color:#111827;font-size:16px;font-weight:700;">打开</a>
+          <a id="downloadLink" class="secondary"
+            style="flex:1;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;height:46px;padding:0 24px;border-radius:14px;border:1px solid var(--border);background:#fff;color:#111827;font-size:16px;font-weight:700;">下载</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title">元数据 (Metadata)</div>
+      <div class="meta-view" style="border-radius:18px;border:1px solid var(--border)">
+        <pre id="metaPre"></pre>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/metadata.js"></script>
+</body>
+
+</html>
