@@ -4,7 +4,7 @@
 
 ## Contact & Credits / 联系与鸣谢
 
-- **Blog**: [QingChuan's Blog](https://qingchuan-zhu-github-io.pages.dev/)
+- **Blog**: [QingChuan's Blog](https://qz-wind-home.pages.dev/)
 - **Social Media / 社交媒体 (风语幻镜)**: 
   - [YouTube](https://www.youtube.com/@WindWhisperer_Stories)
   - 微信公众号 / 抖音 / Bilibili / 小红书 / 快手 / 百家号: **风语幻镜**
