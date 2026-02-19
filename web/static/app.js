@@ -200,8 +200,35 @@ async function stopRender() {
   }
 }
 
+async function loadLastMetadata() {
+  try {
+    const outputs = await fetchJSON('/api/outputs');
+    if (outputs.items && outputs.items.length > 0) {
+      const lastFile = outputs.items[0].filename;
+      const data = await fetchJSON(`/api/metadata/${lastFile}`);
+      const meta = data.metadata;
+
+      if (meta) {
+        if (meta.prompt) {
+          el('prompt').value = meta.prompt;
+        }
+        if (meta.seed !== undefined) {
+          el('seed').value = meta.seed;
+          // 如果加载了旧种子，通常用户希望参考，所以关闭自动随机
+          el('autoSeed').checked = false;
+        }
+        toast('Loaded metadata from last image', lastFile);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load last metadata:', err);
+  }
+}
+
 async function main() {
   await loadOptions();
+  await loadLastMetadata();
+
   el('renderBtn').addEventListener('click', () => {
     startRender().catch((err) => {
       toast('Request Failed / 请求失败', String(err));

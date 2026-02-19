@@ -70,37 +70,33 @@ We recommend using [uv](https://github.com/astral-sh/uv) for fast environment ma
 
 ## Quick Start / 运行项目
 
-This project provides two entry points that can run simultaneously on different ports.
-本项目提供两个入口，可同时运行在同一个局域网内不同的端口上。双击以下 `.ps1` 脚本即可直接启动。
+This project provides multiple ways to start. The recommended way is using the one-click startup script.
+本项目提供多种启动方式，推荐使用一键联动启动脚本。
 
-### 1. 影像生成工作台 (Generation Workspace)
-- **Script**: `.\run_generation.ps1`
-- **Files**: `app_fastapi.py`, `web/index.html`, `web/static/app.js`
-- **URL**: `http://127.0.0.1:17865`
-- **Features**: Minimalist UI, aspect ratio switching, dynamic model loading, real-time SSE logs, instant gallery.
-- **核心功能**：极简界面，支持画幅比例切换、多模型动态加载、实时日志推送、逐张结果追加入库。
+### 🚀 Recommended: One-Click Startup (Twin Portal) / 推荐：全自动一键启动
+- **Script**: `.\start.ps1`
+- **Features / 特性**:
+    - **One-click for All**: Starts both Generation and Viewer services simultaneously. / 一键同步启动生图与查看器服务。
+    - **Silent Running**: Services run in the background without multiple CMD windows. / 静默后台运行，不占用任务栏多余窗口。
+    - **Port Auto-Clean**: Automatically detects and kills old processes occupying ports (17865/17866). / 自动检测并清理端口占用，告别进程冲突。
+    - **Auto-Browser**: Automatically opens both portals in your browser, ensuring **Drawer (Workspace)** is the active tab. / 自动在浏览器中打开双应用门户，并确保“生图工作台”处于当前激活标签页。
 
-### 2. 拾光查看器 (Metadata Viewer)
-- **Script**: `.\run_viewer.ps1`
-- **Files**: `viewer_app.py`, `web/viewer.html`
-- **URL**: `http://127.0.0.1:17866`
-- **Features**:
-    - **Waterfall Layout**: Chronological Masonry layout. / 瀑布流展示。
-    - **Instant Preview**: Reads embedded metadata from PNGs. / 极速预览。
-    - **One-Click Copy**: Click **Seed** or **Prompt** on cards to copy. / 一键复制 Seed/Prompt。
-    - **Detail Modal**: View full generation parameters. / 详情弹窗。
+---
 
-![Viewer UI](./screenshot/viewer.png)
-*Metadata Viewer / 瀑布流查看器*
+### UI Entry Points / 应用入口
 
-![Detail Modal](./screenshot/viewer_detail.png)
-*Detail Modal with Metadata / 元数据详情弹窗*
+| Portal / 门户 | URL | Script (Manual) | Key Features / 核心功能 |
+| --- | --- | --- | --- |
+| **影像生成工作台 (Drawer)** | `127.0.0.1:17865` | `.\run_generation.ps1` | **Smart Loading**: Auto-fetches latest Prompt/Seed on open. <br> **智能加载**：打开即自动填入最近一次生成的提示词与种子。 |
+| **拾光查看器 (Viewer)** | `127.0.0.1:17866` | `.\run_viewer.ps1` | **Waterfall Layout**: Masonry browsing with one-click copy. <br> **瀑布流展示**：元数据极速预览与一键复用。 |
 
 ---
 
 ## Usage Guide / 使用指南
 
 ### 1. Image Generation / 影像生成
+- **Smart Metadata / 智能元数据**: When you open the Drawer, it **automatically loads the prompt and seed from your last generated image**. This makes it incredibly easy to iterate on your previous work.
+- **智能元数据加载**：打开生图工作台时，系统会**自动读取上一张图片的提示词和种子**，方便直接在之前的基础上进行迭代优化。
 - **Prompt (提示词)**: Enter your creative text. Supports English (more compatible with most models).
 - **Model (选择模型)**: Select from GGUF models in your weights folder. The UI supports real-time switching without restart.
 - **Aspect Ratio (画幅比例)**: Choose from Square (1:1), Portrait (3:4), Landscape (4:3), etc.
@@ -109,7 +105,7 @@ This project provides two entry points that can run simultaneously on different 
 - **Stop (停止)**: If the generation is taking too long or you want to abort, use the **Stop** button.
 
 ### 2. Viewing & Management / 查看与管理
-- **Waterfall Layout**: All generated images are saved to the `outputs/` folder and displayed chronologically in the Viewer.
+- **Waterfall Layout**: All generated images are saved to the `outputs/` folder and displayed chronologically in the Viewer (Masonry style).
 - **Metadata Recovery**: Every PNG file has its generation parameters (Prompt, Seed, Model) embedded. Click any image in the Viewer to see the original "recipe".
 - **Copy & Reuse**: Use the **Copy** buttons in the Viewer to quickly reuse successful prompts or seeds in the Generation Workspace.
 
