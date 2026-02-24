@@ -73,6 +73,49 @@ We recommend using [uv](https://github.com/astral-sh/uv) for fast environment ma
 This project provides multiple ways to start. The recommended way is using the one-click startup script.
 本项目提供多种启动方式，推荐使用一键联动启动脚本。
 
+### 🐳 Ubuntu Quick Start (Docker) / Ubuntu Docker 快速启动
+
+1. **Prepare directories / 准备目录**:
+   ```bash
+   mkdir -p outputs models stable-diffusion.cpp
+   ```
+   Put your GGUF model files into `models/`, and place compiled `stable-diffusion.cpp` binaries under `stable-diffusion.cpp/build/bin/`.
+   将 GGUF 模型放入 `models/`，并将编译后的 `stable-diffusion.cpp` 可执行文件放入 `stable-diffusion.cpp/build/bin/`。
+
+2. **Build Linux `sd-cli` (required for Linux containers) / 编译 Linux 版 `sd-cli`（Linux 容器必需）**:
+   ```bash
+   docker run --rm -v "$PWD/stable-diffusion.cpp:/sd.cpp" -w /sd.cpp ubuntu:24.04 bash -lc \
+   "apt-get update && apt-get install -y --no-install-recommends build-essential cmake git && \
+   cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release && \
+   cmake --build build-linux --config Release --parallel --target sd-cli"
+   ```
+
+3. **Configure environment / 配置环境变量**:
+   ```bash
+   cp .env.example .env
+   ```
+   For this setup, keep:
+   此方案建议保持：
+   ```bash
+   WINDDRAWER_SD_CLI=/app/stable-diffusion.cpp/build-linux/bin/sd-cli
+   ```
+   Do not point Linux containers to Windows binaries such as `sd-cli.exe`.
+   不要在 Linux 容器中使用 Windows 可执行文件（例如 `sd-cli.exe`）。
+
+4. **Start both services / 启动双服务**:
+   ```bash
+   docker compose up -d --build
+   ```
+
+5. **Open in browser / 浏览器访问**:
+   - Drawer / 生图工作台: `http://127.0.0.1:17865`
+   - Viewer / 拾光查看器: `http://127.0.0.1:17866`
+
+6. **Stop services / 停止服务**:
+   ```bash
+   docker compose down
+   ```
+
 ### 🚀 Recommended: One-Click Startup (Twin Portal) / 推荐：全自动一键启动
 - **Script**: `.\start.ps1`
 - **Features / 特性**:

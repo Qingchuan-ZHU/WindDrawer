@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, List
 
 # Configuration
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+OUTPUT_DIR = os.getenv("WINDDRAWER_OUTPUT_DIR") or os.path.join(BASE_DIR, "outputs")
 WEB_DIR = os.path.join(BASE_DIR, "web")
 
 app = FastAPI(title="WindDrawer Viewer")

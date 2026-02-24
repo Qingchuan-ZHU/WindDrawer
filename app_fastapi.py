@@ -22,34 +22,75 @@ from fastapi.responses import FileResponse
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PARENT_DIR = os.path.dirname(BASE_DIR)
 
-# Priority: 1. Project-local models/ 2. Sibling models/ 3. Hardcoded fallback (updated)
+def _first_existing_dir(paths: List[str]) -> Optional[str]:
+    for path in paths:
+        if path and os.path.isdir(path):
+            return path
+    return None
+
+
+def _first_existing_file(paths: List[str]) -> Optional[str]:
+    for path in paths:
+        if path and os.path.isfile(path):
+            return path
+    return None
+
+
 _LOCAL_MODEL_DIR = os.path.join(BASE_DIR, "models")
 _PARENT_MODEL_DIR = os.path.join(PARENT_DIR, "models")
+_OLD_DEFAULT_MODEL_DIR = r"D:\_code\models"
+MODEL_DIR = (
+    os.getenv("WINDDRAWER_MODEL_DIR")
+    or os.getenv("MODEL_DIR")
+    or _first_existing_dir([
+        _LOCAL_MODEL_DIR,
+        _PARENT_MODEL_DIR,
+        _OLD_DEFAULT_MODEL_DIR,
+    ])
+    or _PARENT_MODEL_DIR
+)
 
-if os.path.isdir(_LOCAL_MODEL_DIR):
-    MODEL_DIR = _LOCAL_MODEL_DIR
-elif os.path.isdir(_PARENT_MODEL_DIR):
-    MODEL_DIR = _PARENT_MODEL_DIR
-else:
-    # Try the old default path but don't crash if it's gone
-    _OLD_DEFAULT_MODEL_DIR = r"D:\_code\models"
-    MODEL_DIR = _OLD_DEFAULT_MODEL_DIR if os.path.isdir(_OLD_DEFAULT_MODEL_DIR) else _PARENT_MODEL_DIR
+_LOCAL_SD_CLI_WIN = os.path.join(BASE_DIR, "stable-diffusion.cpp", "build", "bin", "Release", "sd-cli.exe")
+_PARENT_SD_CLI_WIN = os.path.join(PARENT_DIR, "stable-diffusion.cpp", "build", "bin", "Release", "sd-cli.exe")
+_LOCAL_SD_CLI_LINUX = os.path.join(BASE_DIR, "stable-diffusion.cpp", "build", "bin", "sd-cli")
+_PARENT_SD_CLI_LINUX = os.path.join(PARENT_DIR, "stable-diffusion.cpp", "build", "bin", "sd-cli")
+_LOCAL_SD_LINUX = os.path.join(BASE_DIR, "stable-diffusion.cpp", "build", "bin", "sd")
+_PARENT_SD_LINUX = os.path.join(PARENT_DIR, "stable-diffusion.cpp", "build", "bin", "sd")
+_LOCAL_SD_CLI_LINUX_ALT = os.path.join(BASE_DIR, "stable-diffusion.cpp", "build-linux", "bin", "sd-cli")
+_PARENT_SD_CLI_LINUX_ALT = os.path.join(PARENT_DIR, "stable-diffusion.cpp", "build-linux", "bin", "sd-cli")
+_LOCAL_SD_LINUX_ALT = os.path.join(BASE_DIR, "stable-diffusion.cpp", "build-linux", "bin", "sd")
+_PARENT_SD_LINUX_ALT = os.path.join(PARENT_DIR, "stable-diffusion.cpp", "build-linux", "bin", "sd")
+_OLD_SD_CLI_WIN = r"D:\_code\stable-diffusion.cpp\build\bin\Release\sd-cli.exe"
+SD_CLI = (
+    os.getenv("WINDDRAWER_SD_CLI")
+    or os.getenv("SD_CLI")
+    or _first_existing_file([
+        _LOCAL_SD_CLI_WIN,
+        _PARENT_SD_CLI_WIN,
+        _LOCAL_SD_CLI_LINUX,
+        _PARENT_SD_CLI_LINUX,
+        _LOCAL_SD_LINUX,
+        _PARENT_SD_LINUX,
+        _LOCAL_SD_CLI_LINUX_ALT,
+        _PARENT_SD_CLI_LINUX_ALT,
+        _LOCAL_SD_LINUX_ALT,
+        _PARENT_SD_LINUX_ALT,
+        _OLD_SD_CLI_WIN,
+    ])
+    or _LOCAL_SD_CLI_LINUX_ALT
+)
 
-# Similar logic for SD_CLI
-_PARENT_SD_CLI = os.path.join(PARENT_DIR, "stable-diffusion.cpp", "build", "bin", "Release", "sd-cli.exe")
-_LOCAL_SD_CLI = os.path.join(BASE_DIR, "stable-diffusion.cpp", "build", "bin", "Release", "sd-cli.exe")
-
-if os.path.exists(_LOCAL_SD_CLI):
-    SD_CLI = _LOCAL_SD_CLI
-elif os.path.exists(_PARENT_SD_CLI):
-    SD_CLI = _PARENT_SD_CLI
-else:
-    # Hardcoded fallback as last resort
-    _OLD_SD_CLI = r"D:\_code\stable-diffusion.cpp\build\bin\Release\sd-cli.exe"
-    SD_CLI = _OLD_SD_CLI if os.path.exists(_OLD_SD_CLI) else _PARENT_SD_CLI
-
-QWEN_PATH = os.path.join(MODEL_DIR, "Qwen3-4B-Instruct-2507-Q4_K_S-4.31bpw.gguf")
-OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+QWEN_PATH = (
+    os.getenv("WINDDRAWER_QWEN_PATH")
+    or os.getenv("QWEN_PATH")
+    or os.path.join(MODEL_DIR, "Qwen3-4B-Instruct-2507-Q4_K_S-4.31bpw.gguf")
+)
+VAE_PATH = (
+    os.getenv("WINDDRAWER_VAE_PATH")
+    or os.getenv("VAE_PATH")
+    or os.path.join(MODEL_DIR, "ae-Q8_0.gguf")
+)
+OUTPUT_DIR = os.getenv("WINDDRAWER_OUTPUT_DIR") or os.path.join(BASE_DIR, "outputs")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -274,7 +315,7 @@ def _run_sd_cli(
         "--llm",
         QWEN_PATH,
         "--vae",
-        os.path.join(MODEL_DIR, "ae-Q8_0.gguf"),
+        VAE_PATH,
         "-p",
         prompt,
         "-W",
@@ -298,7 +339,7 @@ def _run_sd_cli(
         output_path,
     ]
 
-    exe_dir = os.path.dirname(SD_CLI)
+    exe_dir = os.path.dirname(SD_CLI) or None
     start = time.time()
 
     try:
@@ -312,7 +353,7 @@ def _run_sd_cli(
             cwd=exe_dir,
         )
     except FileNotFoundError as exc:
-        raise RuntimeError(f"启动失败：{exc}")
+        raise RuntimeError(f"启动失败：{exc} (SD_CLI={SD_CLI})")
 
     job.current_proc = process
 
@@ -346,7 +387,7 @@ def _run_sd_cli(
         "guidance": 0.0,
         "diffusion_model": sd_model_name,
         "llm": os.path.basename(QWEN_PATH),
-        "vae": "ae-Q8_0.gguf",
+        "vae": os.path.basename(VAE_PATH),
         "generator": "stable-diffusion.cpp sd-cli",
         "duration_sec": duration,
         "timestamp": int(time.time()),
