@@ -1,6 +1,7 @@
 # Local model weights and outputs should never be committed
 models/
 outputs/
+stable-diffusion.cpp/
 
 # uv & Python virtual environment
 .venv/

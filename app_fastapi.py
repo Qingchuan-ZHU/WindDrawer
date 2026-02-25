@@ -38,16 +38,14 @@ def _first_existing_file(paths: List[str]) -> Optional[str]:
 
 _LOCAL_MODEL_DIR = os.path.join(BASE_DIR, "models")
 _PARENT_MODEL_DIR = os.path.join(PARENT_DIR, "models")
-_OLD_DEFAULT_MODEL_DIR = r"D:\_code\models"
 MODEL_DIR = (
     os.getenv("WINDDRAWER_MODEL_DIR")
     or os.getenv("MODEL_DIR")
     or _first_existing_dir([
         _LOCAL_MODEL_DIR,
         _PARENT_MODEL_DIR,
-        _OLD_DEFAULT_MODEL_DIR,
     ])
-    or _PARENT_MODEL_DIR
+    or _LOCAL_MODEL_DIR
 )
 
 _LOCAL_SD_CLI_WIN = os.path.join(BASE_DIR, "stable-diffusion.cpp", "build", "bin", "Release", "sd-cli.exe")
@@ -60,7 +58,6 @@ _LOCAL_SD_CLI_LINUX_ALT = os.path.join(BASE_DIR, "stable-diffusion.cpp", "build-
 _PARENT_SD_CLI_LINUX_ALT = os.path.join(PARENT_DIR, "stable-diffusion.cpp", "build-linux", "bin", "sd-cli")
 _LOCAL_SD_LINUX_ALT = os.path.join(BASE_DIR, "stable-diffusion.cpp", "build-linux", "bin", "sd")
 _PARENT_SD_LINUX_ALT = os.path.join(PARENT_DIR, "stable-diffusion.cpp", "build-linux", "bin", "sd")
-_OLD_SD_CLI_WIN = r"D:\_code\stable-diffusion.cpp\build\bin\Release\sd-cli.exe"
 SD_CLI = (
     os.getenv("WINDDRAWER_SD_CLI")
     or os.getenv("SD_CLI")
@@ -75,7 +72,6 @@ SD_CLI = (
         _PARENT_SD_CLI_LINUX_ALT,
         _LOCAL_SD_LINUX_ALT,
         _PARENT_SD_LINUX_ALT,
-        _OLD_SD_CLI_WIN,
     ])
     or _LOCAL_SD_CLI_LINUX_ALT
 )

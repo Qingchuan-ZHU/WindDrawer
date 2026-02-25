@@ -8,16 +8,25 @@ services:
     command: uvicorn app_fastapi:app --host 0.0.0.0 --port 17865
     environment:
       WINDDRAWER_MODEL_DIR: /app/models
-      WINDDRAWER_SD_CLI: ${WINDDRAWER_SD_CLI:-}
+      WINDDRAWER_SD_CLI: ${WINDDRAWER_SD_CLI:-/app/stable-diffusion.cpp/build-linux/bin/sd-cli}
       WINDDRAWER_QWEN_PATH: ${WINDDRAWER_QWEN_PATH:-/app/models/Qwen3-4B-Instruct-2507-Q4_K_S-4.31bpw.gguf}
       WINDDRAWER_VAE_PATH: ${WINDDRAWER_VAE_PATH:-/app/models/ae-Q8_0.gguf}
       WINDDRAWER_OUTPUT_DIR: /app/outputs
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     volumes:
       - ./outputs:/app/outputs
-      - ${WINDDRAWER_MODELS_DIR:-./models}:/app/models:ro
-      - ${WINDDRAWER_SDCPP_DIR:-./stable-diffusion.cpp}:/app/stable-diffusion.cpp:ro
+      - ./models:/app/models:ro
+      - ./stable-diffusion.cpp:/app/stable-diffusion.cpp:ro
     ports:
       - "17865:17865"
+    gpus: all
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:17865/api/models', timeout=5)"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
     restart: unless-stopped
 
   viewer:
@@ -34,5 +43,6 @@ services:
     ports:
       - "17866:17866"
     depends_on:
-      - drawer
+      drawer:
+        condition: service_healthy
     restart: unless-stopped
