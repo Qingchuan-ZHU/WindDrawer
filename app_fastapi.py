@@ -8,6 +8,7 @@ import random
 import threading
 import subprocess
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Dict, Optional, List, Any, Generator
 
 from PIL import Image
@@ -94,6 +95,29 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 def clean_ansi(text: str) -> str:
     ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
     return ansi_escape.sub("", text)
+
+
+@lru_cache(maxsize=1)
+def _sd_cli_help_text() -> str:
+    exe_dir = os.path.dirname(SD_CLI) or None
+    try:
+        result = subprocess.run(
+            [SD_CLI, "--help"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=exe_dir,
+            check=False,
+        )
+    except Exception:
+        return ""
+    return clean_ansi(result.stdout or "")
+
+
+def _sd_cli_supports(flag: str) -> bool:
+    return flag in _sd_cli_help_text()
 
 
 def write_png_metadata(png_path: str, meta: Dict[str, Any]) -> bool:
@@ -330,10 +354,10 @@ def _run_sd_cli(
         "euler",
         "--clip-on-cpu",
         "--vae-tiling",
-        "--diffusion-fa",
-        "-o",
-        output_path,
     ]
+    if _sd_cli_supports("--diffusion-fa"):
+        cmd.append("--diffusion-fa")
+    cmd.extend(["-o", output_path])
 
     exe_dir = os.path.dirname(SD_CLI) or None
     start = time.time()

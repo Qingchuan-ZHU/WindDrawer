@@ -40,6 +40,18 @@ $ModelsDir = Join-Path $RootDir "models"
 $OutputsDir = Join-Path $RootDir "outputs"
 $SdCppDir = Join-Path $RootDir "stable-diffusion.cpp"
 $SdCliPath = Join-Path $SdCppDir "build-linux/bin/sd-cli"
+$BuildStampPath = Join-Path $SdCppDir "build-linux/.winddrawer_build_info"
+
+$CudaImageTag = if ($env:WINDDRAWER_CUDA_IMAGE_TAG -and $env:WINDDRAWER_CUDA_IMAGE_TAG.Trim()) { $env:WINDDRAWER_CUDA_IMAGE_TAG.Trim() } else { "12.8.0" }
+$CudaArchs = if ($env:WINDDRAWER_CUDA_ARCHS -and $env:WINDDRAWER_CUDA_ARCHS.Trim()) { $env:WINDDRAWER_CUDA_ARCHS.Trim() } else { "89;120" }
+$BuildJobs = 4
+if ($env:WINDDRAWER_BUILD_JOBS -and $env:WINDDRAWER_BUILD_JOBS -match '^\d+$') {
+    $ParsedJobs = [int]$env:WINDDRAWER_BUILD_JOBS
+    if ($ParsedJobs -ge 1) {
+        $BuildJobs = $ParsedJobs
+    }
+}
+$DesiredBuildStamp = "cuda_image_tag=$CudaImageTag`ncuda_archs=$CudaArchs"
 
 Write-Host "------------------------------------" -ForegroundColor Cyan
 Write-Host "   WindDrawer Docker 一键启动脚本   " -ForegroundColor Cyan
@@ -61,20 +73,33 @@ if (-not (Test-Path (Join-Path $SdCppDir "CMakeLists.txt"))) {
     throw "stable-diffusion.cpp 目录异常，请检查: $SdCppDir"
 }
 
-if (-not (Test-Path $SdCliPath)) {
-    Write-Host "[编译] 未找到 CUDA 版 sd-cli，开始在 Docker 中编译..." -ForegroundColor Gray
+
+$NeedBuild = -not (Test-Path $SdCliPath)
+if (-not $NeedBuild -and -not (Test-Path $BuildStampPath)) {
+    $NeedBuild = $true
+}
+if (-not $NeedBuild) {
+    $CurrentBuildStamp = Get-Content -LiteralPath $BuildStampPath -Raw
+    if ($CurrentBuildStamp.Trim() -ne $DesiredBuildStamp.Trim()) {
+        $NeedBuild = $true
+    }
+}
+
+if ($NeedBuild) {
+    Write-Host "[编译] 未找到可复用的 CUDA 版 sd-cli，开始在 Docker 中编译..." -ForegroundColor Gray
+    Write-Host "  CUDA 镜像: $CudaImageTag, 架构: $CudaArchs, 并发: $BuildJobs" -ForegroundColor DarkGray
     $BuildCmd = @"
 apt-get update && \
 apt-get install -y --no-install-recommends build-essential cmake git && \
-cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release -DSD_CUDA=ON && \
-cmake --build build-linux --config Release --parallel --target sd-cli
+cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release -DSD_CUDA=ON "-DCMAKE_CUDA_ARCHITECTURES=$CudaArchs" && \
+cmake --build build-linux --config Release --parallel $BuildJobs --target sd-cli
 "@
     $SdCppMount = (Resolve-Path $SdCppDir).Path -replace "\\", "/"
     $DockerArgs = @(
         "run", "--rm",
         "-v", "${SdCppMount}:/sd.cpp",
         "-w", "/sd.cpp",
-        "nvidia/cuda:12.4.1-devel-ubuntu22.04",
+        "nvidia/cuda:${CudaImageTag}-devel-ubuntu22.04",
         "bash", "-lc", $BuildCmd
     )
     & docker @DockerArgs
@@ -84,6 +109,8 @@ cmake --build build-linux --config Release --parallel --target sd-cli
     if (-not (Test-Path $SdCliPath)) {
         throw "sd-cli 编译命令已执行，但未找到产物: $SdCliPath"
     }
+    New-Item -ItemType Directory -Path (Split-Path -Path $BuildStampPath -Parent) -Force | Out-Null
+    Set-Content -LiteralPath $BuildStampPath -Value $DesiredBuildStamp -NoNewline
 }
 
 $ModelCount = (Get-ChildItem -Path $ModelsDir -Filter *.gguf -File -ErrorAction SilentlyContinue | Measure-Object).Count
@@ -97,7 +124,7 @@ if (-not (Test-Path ".env") -and (Test-Path ".env.example")) {
 
 $GpuCheckCmd = @(
     "run", "--rm", "--gpus", "all",
-    "nvidia/cuda:12.4.1-base-ubuntu22.04",
+    "nvidia/cuda:${CudaImageTag}-base-ubuntu22.04",
     "nvidia-smi"
 )
 Write-Host "[检测] 正在验证 Docker GPU 可用性..." -ForegroundColor Gray

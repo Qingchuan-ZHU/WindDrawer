@@ -46,10 +46,18 @@ winget install -e --id Docker.DockerDesktop --accept-source-agreements --accept-
 ## GPU 验证
 
 ```bash
-docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
+docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi
 ```
 
 如果能看到 GPU 信息，说明 Docker GPU 通路正常。
+
+## 编译参数（可选）
+
+`start.ps1` / `start.sh` 支持以下环境变量：
+
+- `WINDDRAWER_CUDA_IMAGE_TAG`：默认 `12.8.0`
+- `WINDDRAWER_CUDA_ARCHS`：默认 `89;120`（兼容 RTX 4070 Ti Super 与 RTX 5060）
+- `WINDDRAWER_BUILD_JOBS`：默认 `4`
 
 ## 模型文件
 

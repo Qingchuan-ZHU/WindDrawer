@@ -34,6 +34,15 @@ MODELS_DIR="$ROOT_DIR/models"
 OUTPUTS_DIR="$ROOT_DIR/outputs"
 SDCPP_DIR="$ROOT_DIR/stable-diffusion.cpp"
 SDCLI_PATH="$SDCPP_DIR/build-linux/bin/sd-cli"
+BUILD_STAMP_PATH="$SDCPP_DIR/build-linux/.winddrawer_build_info"
+
+CUDA_IMAGE_TAG="${WINDDRAWER_CUDA_IMAGE_TAG:-12.8.0}"
+CUDA_ARCHS="${WINDDRAWER_CUDA_ARCHS:-89;120}"
+BUILD_JOBS="${WINDDRAWER_BUILD_JOBS:-4}"
+if ! [[ "$BUILD_JOBS" =~ ^[0-9]+$ ]] || [[ "$BUILD_JOBS" -lt 1 ]]; then
+  BUILD_JOBS=4
+fi
+DESIRED_BUILD_STAMP=$'cuda_image_tag='"$CUDA_IMAGE_TAG"$'\ncuda_archs='"$CUDA_ARCHS"
 
 echo "------------------------------------"
 echo "  WindDrawer Docker One-Click Start "
@@ -52,17 +61,27 @@ if [[ ! -f "$SDCPP_DIR/CMakeLists.txt" ]]; then
   exit 1
 fi
 
+should_build=0
 if [[ ! -x "$SDCLI_PATH" ]]; then
-  echo "[Build] CUDA sd-cli not found. Building Linux binary in Docker..."
+  should_build=1
+elif [[ ! -f "$BUILD_STAMP_PATH" ]] || [[ "$(cat "$BUILD_STAMP_PATH")" != "$DESIRED_BUILD_STAMP" ]]; then
+  should_build=1
+fi
+
+if [[ "$should_build" -eq 1 ]]; then
+  echo "[Build] CUDA sd-cli not reusable. Building Linux binary in Docker..."
+  echo "  CUDA image: $CUDA_IMAGE_TAG, archs: $CUDA_ARCHS, parallel jobs: $BUILD_JOBS"
   docker run --rm \
     -v "$SDCPP_DIR:/sd.cpp" \
     -w /sd.cpp \
-    nvidia/cuda:12.4.1-devel-ubuntu22.04 \
-    bash -lc "apt-get update && apt-get install -y --no-install-recommends build-essential cmake git && cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release -DSD_CUDA=ON && cmake --build build-linux --config Release --parallel --target sd-cli"
+    "nvidia/cuda:${CUDA_IMAGE_TAG}-devel-ubuntu22.04" \
+    bash -lc "apt-get update && apt-get install -y --no-install-recommends build-essential cmake git && cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release -DSD_CUDA=ON \"-DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS}\" && cmake --build build-linux --config Release --parallel ${BUILD_JOBS} --target sd-cli"
   if [[ ! -x "$SDCLI_PATH" ]]; then
     echo "[ERROR] Build command completed but sd-cli is still missing: $SDCLI_PATH"
     exit 1
   fi
+  mkdir -p "$(dirname "$BUILD_STAMP_PATH")"
+  printf '%s' "$DESIRED_BUILD_STAMP" > "$BUILD_STAMP_PATH"
 fi
 
 shopt -s nullglob
@@ -76,7 +95,7 @@ if [[ ! -f "$ROOT_DIR/.env" && -f "$ROOT_DIR/.env.example" ]]; then
 fi
 
 echo "[Check] Verifying Docker GPU access..."
-docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi >/dev/null
+docker run --rm --gpus all "nvidia/cuda:${CUDA_IMAGE_TAG}-base-ubuntu22.04" nvidia-smi >/dev/null
 
 echo "[Start] Launching containers..."
 docker compose up -d --build
