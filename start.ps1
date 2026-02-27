@@ -26,6 +26,56 @@ function Wait-HttpReady {
     return $false
 }
 
+function Ensure-DockerImageAvailable {
+    param([string]$Image)
+    if (-not $Image -or -not $Image.Trim()) {
+        return $false
+    }
+    & docker image inspect $Image *> $null
+    if ($LASTEXITCODE -eq 0) {
+        return $true
+    }
+    & docker pull $Image
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Resolve-ModelDirectory {
+    param([string[]]$Candidates)
+
+    $NormalizedCandidates = @()
+    foreach ($Candidate in $Candidates) {
+        if (-not $Candidate -or -not $Candidate.Trim()) {
+            continue
+        }
+        $FullPath = [System.IO.Path]::GetFullPath($Candidate.Trim())
+        if ($NormalizedCandidates -notcontains $FullPath) {
+            $NormalizedCandidates += $FullPath
+        }
+    }
+
+    if ($NormalizedCandidates.Count -eq 0) {
+        throw "未提供可用的模型目录候选路径。"
+    }
+
+    $HitDirs = @()
+    foreach ($Dir in $NormalizedCandidates) {
+        if (-not (Test-Path -Path $Dir -PathType Container)) {
+            continue
+        }
+        $Count = (Get-ChildItem -Path $Dir -Filter *.gguf -File -ErrorAction SilentlyContinue | Measure-Object).Count
+        if ($Count -gt 0) {
+            $HitDirs += $Dir
+        }
+    }
+
+    $SelectedDir = if ($HitDirs.Count -gt 0) { $HitDirs[0] } else { $NormalizedCandidates[0] }
+    return [PSCustomObject]@{
+        SelectedDir = $SelectedDir
+        CandidateDirs = $NormalizedCandidates
+        HitDirs = $HitDirs
+    }
+}
+
 if (-not (Get-Command "docker" -ErrorAction SilentlyContinue)) {
     $DockerBin = "C:\Program Files\Docker\Docker\resources\bin"
     if (Test-Path (Join-Path $DockerBin "docker.exe")) {
@@ -36,13 +86,21 @@ if (-not (Get-Command "docker" -ErrorAction SilentlyContinue)) {
 Require-Command -Name "docker" -Hint "请先安装 Docker Desktop 并确认 `docker` 在 PATH 中。"
 
 $RootDir = $PSScriptRoot
-$ModelsDir = Join-Path $RootDir "models"
+$DefaultModelsDir = Join-Path $RootDir "models"
+$DefaultExternalModelsDir = "D:\_code\models"
+$PreferredModelsDir = if ($env:WINDDRAWER_HOST_MODEL_DIR -and $env:WINDDRAWER_HOST_MODEL_DIR.Trim()) { $env:WINDDRAWER_HOST_MODEL_DIR.Trim() } else { $null }
+$ExtraModelsDir = if ($env:WINDDRAWER_HOST_MODEL_DIR_ALT -and $env:WINDDRAWER_HOST_MODEL_DIR_ALT.Trim()) { $env:WINDDRAWER_HOST_MODEL_DIR_ALT.Trim() } else { $DefaultExternalModelsDir }
+$ModelProbe = Resolve-ModelDirectory -Candidates @($PreferredModelsDir, $DefaultModelsDir, $ExtraModelsDir)
+$ModelsDir = $ModelProbe.SelectedDir
 $OutputsDir = Join-Path $RootDir "outputs"
 $SdCppDir = Join-Path $RootDir "stable-diffusion.cpp"
 $SdCliPath = Join-Path $SdCppDir "build-linux/bin/sd-cli"
 $BuildStampPath = Join-Path $SdCppDir "build-linux/.winddrawer_build_info"
 
 $CudaImageTag = if ($env:WINDDRAWER_CUDA_IMAGE_TAG -and $env:WINDDRAWER_CUDA_IMAGE_TAG.Trim()) { $env:WINDDRAWER_CUDA_IMAGE_TAG.Trim() } else { "12.8.0" }
+$ExplicitCudaImageRepo = if ($env:WINDDRAWER_CUDA_IMAGE_REPO -and $env:WINDDRAWER_CUDA_IMAGE_REPO.Trim()) { $env:WINDDRAWER_CUDA_IMAGE_REPO.Trim() } else { $null }
+$ExplicitDockerBaseImage = if ($env:WINDDRAWER_DOCKER_BASE_IMAGE -and $env:WINDDRAWER_DOCKER_BASE_IMAGE.Trim()) { $env:WINDDRAWER_DOCKER_BASE_IMAGE.Trim() } else { $null }
+$CudaImageRepo = if ($ExplicitCudaImageRepo) { $ExplicitCudaImageRepo } else { "nvidia/cuda" }
 $CudaArchs = if ($env:WINDDRAWER_CUDA_ARCHS -and $env:WINDDRAWER_CUDA_ARCHS.Trim()) { $env:WINDDRAWER_CUDA_ARCHS.Trim() } else { "89;120" }
 $BuildJobs = 4
 if ($env:WINDDRAWER_BUILD_JOBS -and $env:WINDDRAWER_BUILD_JOBS -match '^\d+$') {
@@ -53,12 +111,45 @@ if ($env:WINDDRAWER_BUILD_JOBS -and $env:WINDDRAWER_BUILD_JOBS -match '^\d+$') {
 }
 $DesiredBuildStamp = "cuda_image_tag=$CudaImageTag`ncuda_archs=$CudaArchs"
 
+if (-not $ExplicitCudaImageRepo -and -not $ExplicitDockerBaseImage) {
+    $DefaultRuntimeImage = "nvidia/cuda:${CudaImageTag}-runtime-ubuntu22.04"
+    Write-Host "[检测] 正在验证 CUDA runtime 镜像可用性..." -ForegroundColor Gray
+    if (-not (Ensure-DockerImageAvailable -Image $DefaultRuntimeImage)) {
+        $FallbackRepo = "nvcr.io/nvidia/cuda"
+        $FallbackRuntimeImage = "${FallbackRepo}:${CudaImageTag}-runtime-ubuntu22.04"
+        if (Ensure-DockerImageAvailable -Image $FallbackRuntimeImage) {
+            Write-Host "[提示] Docker Hub CUDA runtime 镜像不可用，自动切换为 nvcr.io 源。" -ForegroundColor Yellow
+            $CudaImageRepo = $FallbackRepo
+        }
+        else {
+            throw "无法访问 CUDA runtime 镜像，请设置 `WINDDRAWER_DOCKER_BASE_IMAGE` 或修复 Docker 镜像源后重试。"
+        }
+    }
+}
+
+$CudaRuntimeImage = "${CudaImageRepo}:${CudaImageTag}-runtime-ubuntu22.04"
+$CudaDevelImage = "${CudaImageRepo}:${CudaImageTag}-devel-ubuntu22.04"
+$CudaBaseImage = "${CudaImageRepo}:${CudaImageTag}-base-ubuntu22.04"
+$DockerBaseImage = if ($ExplicitDockerBaseImage) { $ExplicitDockerBaseImage } else { $CudaRuntimeImage }
+$ShouldExportDockerBaseImage = [bool]$ExplicitDockerBaseImage -or ($CudaImageRepo -ne "nvidia/cuda")
+if ($ShouldExportDockerBaseImage) {
+    $env:WINDDRAWER_DOCKER_BASE_IMAGE = $DockerBaseImage
+}
+
 Write-Host "------------------------------------" -ForegroundColor Cyan
 Write-Host "   WindDrawer Docker 一键启动脚本   " -ForegroundColor Cyan
 Write-Host "------------------------------------" -ForegroundColor Cyan
+Write-Host "[配置] CUDA 仓库: $CudaImageRepo" -ForegroundColor DarkGray
+Write-Host "[配置] 构建基础镜像: $DockerBaseImage" -ForegroundColor DarkGray
+Write-Host "[配置] 模型目录: $ModelsDir" -ForegroundColor DarkGray
+Write-Host "[配置] 模型候选目录: $($ModelProbe.CandidateDirs -join '; ')" -ForegroundColor DarkGray
+if ($ModelProbe.HitDirs.Count -gt 1) {
+    Write-Host "[提示] 检测到多个模型目录命中，当前优先使用: $ModelsDir" -ForegroundColor Yellow
+}
 
 New-Item -ItemType Directory -Path $ModelsDir -Force | Out-Null
 New-Item -ItemType Directory -Path $OutputsDir -Force | Out-Null
+$env:WINDDRAWER_HOST_MODEL_DIR = $ModelsDir
 
 if (-not (Test-Path $SdCppDir)) {
     Require-Command -Name "git" -Hint "首次启动需要自动拉取 stable-diffusion.cpp，请先安装 Git。"
@@ -99,7 +190,7 @@ cmake --build build-linux --config Release --parallel $BuildJobs --target sd-cli
         "run", "--rm",
         "-v", "${SdCppMount}:/sd.cpp",
         "-w", "/sd.cpp",
-        "nvidia/cuda:${CudaImageTag}-devel-ubuntu22.04",
+        $CudaDevelImage,
         "bash", "-lc", $BuildCmd
     )
     & docker @DockerArgs
@@ -113,9 +204,10 @@ cmake --build build-linux --config Release --parallel $BuildJobs --target sd-cli
     Set-Content -LiteralPath $BuildStampPath -Value $DesiredBuildStamp -NoNewline
 }
 
-$ModelCount = (Get-ChildItem -Path $ModelsDir -Filter *.gguf -File -ErrorAction SilentlyContinue | Measure-Object).Count
-if ($ModelCount -eq 0) {
-    Write-Host "[提示] models/ 目录当前为空。请放入 GGUF 模型后再进行生图。" -ForegroundColor Yellow
+$MatchedModelDirs = $ModelProbe.HitDirs
+if ($MatchedModelDirs.Count -eq 0) {
+    Write-Host "[提示] 未在以下目录找到 GGUF 模型：$($ModelProbe.CandidateDirs -join '; ')" -ForegroundColor Yellow
+    Write-Host "      请在任一目录放入模型后重试。" -ForegroundColor Yellow
 }
 
 if (-not (Test-Path ".env") -and (Test-Path ".env.example")) {
@@ -124,7 +216,7 @@ if (-not (Test-Path ".env") -and (Test-Path ".env.example")) {
 
 $GpuCheckCmd = @(
     "run", "--rm", "--gpus", "all",
-    "nvidia/cuda:${CudaImageTag}-base-ubuntu22.04",
+    $CudaBaseImage,
     "nvidia-smi"
 )
 Write-Host "[检测] 正在验证 Docker GPU 可用性..." -ForegroundColor Gray

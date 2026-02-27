@@ -27,16 +27,28 @@ wait_http_ready() {
   return 1
 }
 
+ensure_image_available() {
+  local image="$1"
+  if docker image inspect "$image" >/dev/null 2>&1; then
+    return 0
+  fi
+  docker pull "$image" >/dev/null
+}
+
 require_cmd docker "Please install Docker Engine / Docker Desktop first."
 require_cmd curl "Please install curl first."
 
-MODELS_DIR="$ROOT_DIR/models"
+DEFAULT_MODELS_DIR="$ROOT_DIR/models"
+MODELS_DIR="${WINDDRAWER_HOST_MODEL_DIR:-$DEFAULT_MODELS_DIR}"
 OUTPUTS_DIR="$ROOT_DIR/outputs"
 SDCPP_DIR="$ROOT_DIR/stable-diffusion.cpp"
 SDCLI_PATH="$SDCPP_DIR/build-linux/bin/sd-cli"
 BUILD_STAMP_PATH="$SDCPP_DIR/build-linux/.winddrawer_build_info"
 
 CUDA_IMAGE_TAG="${WINDDRAWER_CUDA_IMAGE_TAG:-12.8.0}"
+EXPLICIT_CUDA_IMAGE_REPO="${WINDDRAWER_CUDA_IMAGE_REPO:-}"
+EXPLICIT_DOCKER_BASE_IMAGE="${WINDDRAWER_DOCKER_BASE_IMAGE:-}"
+CUDA_IMAGE_REPO="${EXPLICIT_CUDA_IMAGE_REPO:-nvidia/cuda}"
 CUDA_ARCHS="${WINDDRAWER_CUDA_ARCHS:-89;120}"
 BUILD_JOBS="${WINDDRAWER_BUILD_JOBS:-4}"
 if ! [[ "$BUILD_JOBS" =~ ^[0-9]+$ ]] || [[ "$BUILD_JOBS" -lt 1 ]]; then
@@ -44,11 +56,37 @@ if ! [[ "$BUILD_JOBS" =~ ^[0-9]+$ ]] || [[ "$BUILD_JOBS" -lt 1 ]]; then
 fi
 DESIRED_BUILD_STAMP=$'cuda_image_tag='"$CUDA_IMAGE_TAG"$'\ncuda_archs='"$CUDA_ARCHS"
 
+if [[ -z "$EXPLICIT_CUDA_IMAGE_REPO" && -z "$EXPLICIT_DOCKER_BASE_IMAGE" ]]; then
+  echo "[Check] Verifying CUDA runtime image availability..."
+  if ! ensure_image_available "nvidia/cuda:${CUDA_IMAGE_TAG}-runtime-ubuntu22.04"; then
+    if ensure_image_available "nvcr.io/nvidia/cuda:${CUDA_IMAGE_TAG}-runtime-ubuntu22.04"; then
+      echo "[Tip] Docker Hub CUDA runtime image unavailable. Falling back to nvcr.io."
+      CUDA_IMAGE_REPO="nvcr.io/nvidia/cuda"
+    else
+      echo "[ERROR] Cannot access CUDA runtime image. Set WINDDRAWER_DOCKER_BASE_IMAGE or fix your Docker mirror."
+      exit 1
+    fi
+  fi
+fi
+
+CUDA_RUNTIME_IMAGE="${CUDA_IMAGE_REPO}:${CUDA_IMAGE_TAG}-runtime-ubuntu22.04"
+CUDA_DEVEL_IMAGE="${CUDA_IMAGE_REPO}:${CUDA_IMAGE_TAG}-devel-ubuntu22.04"
+CUDA_BASE_IMAGE="${CUDA_IMAGE_REPO}:${CUDA_IMAGE_TAG}-base-ubuntu22.04"
+DOCKER_BASE_IMAGE="${EXPLICIT_DOCKER_BASE_IMAGE:-$CUDA_RUNTIME_IMAGE}"
+if [[ -n "$EXPLICIT_DOCKER_BASE_IMAGE" || "$CUDA_IMAGE_REPO" != "nvidia/cuda" ]]; then
+  export WINDDRAWER_DOCKER_BASE_IMAGE="$DOCKER_BASE_IMAGE"
+fi
+
 echo "------------------------------------"
 echo "  WindDrawer Docker One-Click Start "
 echo "------------------------------------"
+echo "[Config] CUDA repo: $CUDA_IMAGE_REPO"
+echo "[Config] Docker base image: $DOCKER_BASE_IMAGE"
 
 mkdir -p "$MODELS_DIR" "$OUTPUTS_DIR"
+MODELS_DIR="$(cd "$MODELS_DIR" && pwd)"
+export WINDDRAWER_HOST_MODEL_DIR="$MODELS_DIR"
+echo "[Config] Model directory: $MODELS_DIR"
 
 if [[ ! -d "$SDCPP_DIR" ]]; then
   require_cmd git "First startup needs to clone stable-diffusion.cpp. Please install git."
@@ -74,7 +112,7 @@ if [[ "$should_build" -eq 1 ]]; then
   docker run --rm \
     -v "$SDCPP_DIR:/sd.cpp" \
     -w /sd.cpp \
-    "nvidia/cuda:${CUDA_IMAGE_TAG}-devel-ubuntu22.04" \
+    "$CUDA_DEVEL_IMAGE" \
     bash -lc "apt-get update && apt-get install -y --no-install-recommends build-essential cmake git && cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Release -DSD_CUDA=ON \"-DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS}\" && cmake --build build-linux --config Release --parallel ${BUILD_JOBS} --target sd-cli"
   if [[ ! -x "$SDCLI_PATH" ]]; then
     echo "[ERROR] Build command completed but sd-cli is still missing: $SDCLI_PATH"
@@ -95,7 +133,7 @@ if [[ ! -f "$ROOT_DIR/.env" && -f "$ROOT_DIR/.env.example" ]]; then
 fi
 
 echo "[Check] Verifying Docker GPU access..."
-docker run --rm --gpus all "nvidia/cuda:${CUDA_IMAGE_TAG}-base-ubuntu22.04" nvidia-smi >/dev/null
+docker run --rm --gpus all "$CUDA_BASE_IMAGE" nvidia-smi >/dev/null
 
 echo "[Start] Launching containers..."
 docker compose up -d --build

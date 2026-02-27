@@ -16,11 +16,12 @@ bash ./start.sh
 
 脚本会自动执行：
 
-1. 创建 `models/`、`outputs/`
+1. 自动探测模型目录（默认同时检查 `./models` 与 `D:\_code\models`，任一命中即可）并创建 `outputs/`
 2. 首次自动拉取 `stable-diffusion.cpp`
 3. 自动编译 **CUDA 版** `sd-cli`（`-DSD_CUDA=ON`）
 4. 验证 `docker --gpus all` 可用
-5. `docker compose up -d --build`
+5. 根据可用性自动选择 CUDA 镜像源（`nvidia/cuda` 或 `nvcr.io/nvidia/cuda`）
+6. `docker compose up -d --build`
 
 ## 访问地址
 
@@ -56,12 +57,36 @@ docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi
 `start.ps1` / `start.sh` 支持以下环境变量：
 
 - `WINDDRAWER_CUDA_IMAGE_TAG`：默认 `12.8.0`
+- `WINDDRAWER_CUDA_IMAGE_REPO`：默认 `nvidia/cuda`（不设置时脚本会自动回退到 `nvcr.io/nvidia/cuda`）
 - `WINDDRAWER_CUDA_ARCHS`：默认 `89;120`（兼容 RTX 4070 Ti Super 与 RTX 5060）
 - `WINDDRAWER_BUILD_JOBS`：默认 `4`
+- `WINDDRAWER_DOCKER_BASE_IMAGE`：用于覆盖应用容器基础镜像（默认 `${repo}:${tag}-runtime-ubuntu22.04`）
+- `WINDDRAWER_HOST_MODEL_DIR`：模型目录第一候选（显式指定时优先）
+- `WINDDRAWER_HOST_MODEL_DIR_ALT`：模型目录第二候选（默认 `D:\_code\models`）
+
+如果你遇到 `401 Unauthorized`（例如 `docker.m.daocloud.io`），可手动指定：
+
+Windows:
+```powershell
+$env:WINDDRAWER_DOCKER_BASE_IMAGE = "nvcr.io/nvidia/cuda:12.8.0-runtime-ubuntu22.04"
+.\start.ps1
+```
+
+Ubuntu:
+```bash
+WINDDRAWER_DOCKER_BASE_IMAGE=nvcr.io/nvidia/cuda:12.8.0-runtime-ubuntu22.04 bash ./start.sh
+```
+
+模型目录候选自定义（Windows 示例）：
+```powershell
+$env:WINDDRAWER_HOST_MODEL_DIR = ".\models"
+$env:WINDDRAWER_HOST_MODEL_DIR_ALT = "D:\_code\models"
+.\start.ps1
+```
 
 ## 模型文件
 
-把模型放到仓库内 `models/`：
+把模型放到任一命中的模型目录（默认探测 `./models` 与 `D:\_code\models`）：
 
 - `Qwen3-4B-Instruct-2507-Q4_K_S-4.31bpw.gguf`
 - `ae-Q8_0.gguf`

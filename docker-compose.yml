@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        CUDA_BASE_IMAGE: ${WINDDRAWER_DOCKER_BASE_IMAGE:-nvidia/cuda:12.8.0-runtime-ubuntu22.04}
     image: winddrawer:latest
     container_name: winddrawer-drawer
     command: uvicorn app_fastapi:app --host 0.0.0.0 --port 17865
@@ -16,7 +18,10 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
     volumes:
       - ./outputs:/app/outputs
-      - ./models:/app/models:ro
+      - type: bind
+        source: ${WINDDRAWER_HOST_MODEL_DIR:-./models}
+        target: /app/models
+        read_only: true
       - ./stable-diffusion.cpp:/app/stable-diffusion.cpp:ro
     ports:
       - "17865:17865"
@@ -33,6 +38,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        CUDA_BASE_IMAGE: ${WINDDRAWER_DOCKER_BASE_IMAGE:-nvidia/cuda:12.8.0-runtime-ubuntu22.04}
     image: winddrawer:latest
     container_name: winddrawer-viewer
     command: uvicorn viewer_app:app --host 0.0.0.0 --port 17866
