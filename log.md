@@ -7,6 +7,13 @@
 - 修复查看器缩略图加载失败：卡片图片 URL 由固定拼接 `?w=500` 改为根据现有查询参数安全拼接，避免 `?folder=...?...` 造成图片 404。
 - 增加 Electron 桌面壳：新增 `electron/` 主进程、预加载脚本与双面板壳页面，在单个桌面窗口内同时显示 Drawer 和 Viewer。
 - 增加 `start-electron.ps1` 与 `package.json`（`electron:start`、`electron:dist`），支持本地启动与 Windows 安装包构建。
+- 修复 Electron 安装不完整导致启动失败：`start-electron.ps1` 新增自检与自修复（检测 `node_modules/electron/path.txt` 与 `dist` 可执行文件，缺失时自动执行 `npm rebuild electron --foreground-scripts`）。
+- 改进桌面壳启动流程：`start-electron.ps1` 在默认本地地址不可达时自动调用 `start.ps1 -NoOpenBrowser` 拉起后端，并在自定义 URL 不可达时直接报错。
+- 修复 PowerShell 版本兼容问题：`start-electron.ps1` 不再通过 `powershell.exe`（5.1）中转执行 `start.ps1`，改为当前会话直接调用，避免 UTF-8 中文脚本解析异常。
+- `start.ps1` 新增 `-NoOpenBrowser` 参数与 `Docker daemon` 前置检测，未启动 Docker Desktop 时给出明确错误提示。
+- Electron 主进程新增后端自启动：默认 URL 不可达时自动探测运行目录并拉起 `start.ps1`，失败时弹窗提示并可手动重载。
+- 打包配置新增 `extraResources/runtime-template`，将 Docker 运行所需脚本与后端文件打入安装包，并在打包版首次启动时复制到用户目录运行（避免安装目录写权限问题）。
+- 新增统一应用图标：设计 `web/static/winddrawer-icon.svg`，并通过 `npm run icon:build` 生成 `web/static/favicon.png` 与 `build/icon.ico`；网页页签/页面 logo 与 Windows 打包 exe 图标全部切换为新图标。
 - 文档补充桌面壳使用说明，并支持 `WINDDRAWER_DRAWER_URL` / `WINDDRAWER_VIEWER_URL` 覆盖地址。
 
 ## 2026-02-27

@@ -5,13 +5,16 @@
   "description": "Desktop shell for WindDrawer drawer + viewer.",
   "main": "electron/main.js",
   "scripts": {
+    "icon:build": "node scripts/generate-icons.mjs",
     "electron:start": "node electron/run-electron.js",
     "electron:pack": "electron-builder --dir",
     "electron:dist": "electron-builder --win nsis"
   },
   "devDependencies": {
     "electron": "^31.7.7",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.4"
   },
   "build": {
     "appId": "com.winddrawer.desktop",
@@ -24,11 +27,60 @@
       "web/static/favicon.png",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "start.ps1",
+        "to": "runtime-template/start.ps1"
+      },
+      {
+        "from": "start.sh",
+        "to": "runtime-template/start.sh"
+      },
+      {
+        "from": "docker-compose.yml",
+        "to": "runtime-template/docker-compose.yml"
+      },
+      {
+        "from": "Dockerfile",
+        "to": "runtime-template/Dockerfile"
+      },
+      {
+        "from": "requirements.txt",
+        "to": "runtime-template/requirements.txt"
+      },
+      {
+        "from": ".env.example",
+        "to": "runtime-template/.env.example"
+      },
+      {
+        "from": ".dockerignore",
+        "to": "runtime-template/.dockerignore"
+      },
+      {
+        "from": "app_fastapi.py",
+        "to": "runtime-template/app_fastapi.py"
+      },
+      {
+        "from": "viewer_app.py",
+        "to": "runtime-template/viewer_app.py"
+      },
+      {
+        "from": "web",
+        "to": "runtime-template/web"
+      }
+    ],
     "win": {
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false,
       "target": [
         "nsis"
       ],
       "artifactName": "WindDrawer-Desktop-${version}.${ext}"
+    },
+    "nsis": {
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico"
     }
   }
 }

@@ -34,23 +34,44 @@ bash ./start.sh
 
 ### 启动步骤（Windows）
 
-1. 先启动 Docker 服务（后端）：
-```powershell
-.\start.ps1
-```
-2. 再启动桌面壳：
+推荐直接启动桌面壳（会先检查/修复 Electron 依赖，并在默认本地地址不可达时自动调用 `start.ps1` 拉起后端）：
+
 ```powershell
 .\start-electron.ps1
 ```
 
-首次运行 `start-electron.ps1` 会自动执行 `npm install` 安装 Electron 依赖。
+如需手动分步启动，也可先启动后端再打开桌面壳：
+
+```powershell
+.\start.ps1
+.\start-electron.ps1
+```
+
+如果看到 `Docker daemon 未就绪`，请先启动 Docker Desktop（Linux Engine）后重试。
 
 ### 手动命令
+
+```powershell
+.\start-electron.ps1
+```
+
+首次运行会自动执行 `npm install` 安装 Electron 依赖；如需纯 npm 方式：
 
 ```powershell
 npm install
 npm run electron:start
 ```
+
+### 打包 exe（自动拉起后端）
+
+```powershell
+npm run electron:dist
+```
+
+打包后的桌面版在默认地址不可达时，会在应用内部自动执行后端启动脚本（等价于 `start.ps1 -NoOpenBrowser`）。
+
+- 默认把运行时模板解压到用户目录：`%APPDATA%\winddrawer-desktop\runtime`
+- 若需指定现有项目目录，可先设置 `WINDDRAWER_PROJECT_ROOT` 再启动 exe
 
 ### 可选：自定义地址
 

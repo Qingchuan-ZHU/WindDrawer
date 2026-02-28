@@ -1,3 +1,7 @@
+param(
+    [switch]$NoOpenBrowser
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot
@@ -76,6 +80,13 @@ function Resolve-ModelDirectory {
     }
 }
 
+function Ensure-DockerDaemonReady {
+    & docker info *> $null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker daemon 未就绪。请先启动 Docker Desktop，并确认 Linux Engine 可用后重试。"
+    }
+}
+
 if (-not (Get-Command "docker" -ErrorAction SilentlyContinue)) {
     $DockerBin = "C:\Program Files\Docker\Docker\resources\bin"
     if (Test-Path (Join-Path $DockerBin "docker.exe")) {
@@ -84,6 +95,7 @@ if (-not (Get-Command "docker" -ErrorAction SilentlyContinue)) {
 }
 
 Require-Command -Name "docker" -Hint "请先安装 Docker Desktop 并确认 `docker` 在 PATH 中。"
+Ensure-DockerDaemonReady
 
 $RootDir = $PSScriptRoot
 $DefaultModelsDir = Join-Path $RootDir "models"
@@ -243,15 +255,20 @@ if ($DrawerReady -and $ViewerReady) {
     Write-Host "  Drawer: $MainUrl"
     Write-Host "  Viewer: $ViewerUrl"
 
-    try {
-        Start-Process "explorer.exe" $ViewerUrl
-        Start-Sleep -Milliseconds 500
-        Start-Process "explorer.exe" $MainUrl
+    if (-not $NoOpenBrowser) {
+        try {
+            Start-Process "explorer.exe" $ViewerUrl
+            Start-Sleep -Milliseconds 500
+            Start-Process "explorer.exe" $MainUrl
+        }
+        catch {
+            Start-Process $ViewerUrl
+            Start-Sleep -Milliseconds 500
+            Start-Process $MainUrl
+        }
     }
-    catch {
-        Start-Process $ViewerUrl
-        Start-Sleep -Milliseconds 500
-        Start-Process $MainUrl
+    else {
+        Write-Host "[提示] 已跳过自动打开浏览器（NoOpenBrowser）。" -ForegroundColor DarkGray
     }
 }
 else {
