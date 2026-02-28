@@ -1,0 +1,34 @@
+{
+  "name": "winddrawer-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop shell for WindDrawer drawer + viewer.",
+  "main": "electron/main.js",
+  "scripts": {
+    "electron:start": "node electron/run-electron.js",
+    "electron:pack": "electron-builder --dir",
+    "electron:dist": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.winddrawer.desktop",
+    "productName": "WindDrawer Desktop",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "web/static/favicon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "WindDrawer-Desktop-${version}.${ext}"
+    }
+  }
+}

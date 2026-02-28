@@ -28,6 +28,44 @@ bash ./start.sh
 - Drawer: `http://127.0.0.1:17865`
 - Viewer: `http://127.0.0.1:17866`
 
+## 桌面壳（Electron）
+
+如果你不想在浏览器里开两个页面，可以使用桌面壳同时加载 Drawer + Viewer（双面板）。
+
+### 启动步骤（Windows）
+
+1. 先启动 Docker 服务（后端）：
+```powershell
+.\start.ps1
+```
+2. 再启动桌面壳：
+```powershell
+.\start-electron.ps1
+```
+
+首次运行 `start-electron.ps1` 会自动执行 `npm install` 安装 Electron 依赖。
+
+### 手动命令
+
+```powershell
+npm install
+npm run electron:start
+```
+
+### 可选：自定义地址
+
+默认地址：
+- Drawer: `http://127.0.0.1:17865/`
+- Viewer: `http://127.0.0.1:17866/`
+
+如需覆盖，可在启动前设置：
+
+```powershell
+$env:WINDDRAWER_DRAWER_URL = "http://127.0.0.1:17865/"
+$env:WINDDRAWER_VIEWER_URL = "http://127.0.0.1:17866/"
+.\start-electron.ps1
+```
+
 ## 前置条件
 
 - NVIDIA 显卡 + 最新驱动

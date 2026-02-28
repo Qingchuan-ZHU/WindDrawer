@@ -24,7 +24,7 @@
             color: var(--text);
             height: 100vh;
             display: grid;
-            grid-template-rows: 60px 1fr;
+            grid-template-rows: auto 1fr;
         }
 
         /* Topbar */
@@ -57,6 +57,28 @@
             font-size: 18px;
         }
 
+        .topbar-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .folder-label {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .folder-select {
+            min-width: 220px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #fff;
+            color: var(--text);
+            padding: 0 10px;
+        }
+
         button {
             padding: 8px 16px;
             border-radius: 8px;
@@ -74,6 +96,23 @@
 
         button:active {
             transform: translateY(1px);
+        }
+
+        @media (max-width: 900px) {
+            .topbar {
+                padding: 12px;
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+
+            .topbar-controls {
+                width: 100%;
+            }
+
+            .folder-select {
+                flex: 1;
+                min-width: 150px;
+            }
         }
 
         /* Waterfall Layout */
@@ -369,7 +408,11 @@
             <div class="title">风语画笺 · 拾光查看器 (WindDrawer Viewer)</div>
         </div>
         <div style="flex:1"></div>
-        <button id="refreshBtn">Refresh / 刷新</button>
+        <div class="topbar-controls">
+            <span class="folder-label">Folder / 文件夹</span>
+            <select id="folderSelect" class="folder-select"></select>
+            <button id="refreshBtn">Refresh / 刷新</button>
+        </div>
     </header>
 
     <div class="main">
@@ -450,9 +493,51 @@
             }
         }
 
-        async function loadCardMetadata(filename, div) {
+        let currentItems = [];
+        let currentFolder = '__default__';
+        let resizeTimer = null;
+
+        function buildFolderQuery(folder) {
+            const params = new URLSearchParams();
+            params.set('folder', folder || '__default__');
+            return params.toString();
+        }
+
+        function metadataApiUrl(filename, folder) {
+            return `/api/metadata/${encodeURIComponent(filename)}?${buildFolderQuery(folder)}`;
+        }
+
+        async function loadFolderOptions() {
+            const folderSelect = el('folderSelect');
+            const res = await fetchJSON('/api/folders');
+            const items = res.items || [];
+
+            folderSelect.innerHTML = '';
+            if (items.length === 0) {
+                const fallback = document.createElement('option');
+                fallback.value = '__default__';
+                fallback.textContent = 'outputs (default)';
+                folderSelect.appendChild(fallback);
+                currentFolder = '__default__';
+                return;
+            }
+
+            for (const item of items) {
+                const option = document.createElement('option');
+                option.value = item.value;
+                option.textContent = item.label;
+                folderSelect.appendChild(option);
+            }
+
+            const preferredFolder = res.current || currentFolder || '__default__';
+            const hasPreferred = items.some(item => item.value === preferredFolder);
+            currentFolder = hasPreferred ? preferredFolder : items[0].value;
+            folderSelect.value = currentFolder;
+        }
+
+        async function loadCardMetadata(filename, div, folder) {
             try {
-                const res = await fetchJSON(`/api/metadata/${encodeURIComponent(filename)}`);
+                const res = await fetchJSON(metadataApiUrl(filename, folder));
                 const meta = res.metadata || {};
                 const data = meta.zimage || meta;
 
@@ -478,9 +563,10 @@
         function createCard(item) {
             const div = document.createElement('div');
             div.className = 'card';
+            const imgUrl = item.url.includes('?') ? `${item.url}&v=1` : `${item.url}?v=1`;
             div.innerHTML = `
             <div class="card-img-wrap">
-                <img src="${item.url}?w=500" loading="lazy" alt="${item.filename}">
+                <img src="${imgUrl}" loading="lazy" alt="${item.filename}">
             </div>
             <div class="card-details">
                 <div class="detail-row">
@@ -500,7 +586,7 @@
             div.querySelector('.card-img-wrap').addEventListener('click', () => openModal(item));
 
             // Lazy load metadata
-            loadCardMetadata(item.filename, div);
+            loadCardMetadata(item.filename, div, item.folder || currentFolder);
 
             return div;
         }
@@ -523,7 +609,7 @@
             el('m-params').textContent = '...';
 
             try {
-                const res = await fetchJSON(`/api/metadata/${encodeURIComponent(item.filename)}`);
+                const res = await fetchJSON(metadataApiUrl(item.filename, item.folder || currentFolder));
                 const meta = res.metadata || {};
                 const data = meta.zimage || meta;
 
@@ -549,9 +635,6 @@
         });
 
         // Masonry Logic
-        let currentItems = [];
-        let resizeTimer = null;
-
         function renderMasonry() {
             const gallery = el('gallery');
             gallery.innerHTML = '';
@@ -587,7 +670,11 @@
             const gallery = el('gallery');
 
             try {
-                const res = await fetchJSON('/api/images');
+                const res = await fetchJSON(`/api/images?${buildFolderQuery(currentFolder)}`);
+                currentFolder = res.folder || currentFolder;
+                if (el('folderSelect').value !== currentFolder) {
+                    el('folderSelect').value = currentFolder;
+                }
                 currentItems = res.items || [];
                 if (currentItems.length === 0) {
                     gallery.innerHTML = '<div style="text-align:center;padding:40px;width:100%;color:#888;">No images found / 暂无图片</div>';
@@ -606,10 +693,20 @@
             }, 100);
         });
 
+        el('folderSelect').addEventListener('change', () => {
+            currentFolder = el('folderSelect').value || '__default__';
+            loadGallery();
+        });
         el('refreshBtn').addEventListener('click', loadGallery);
 
-        // Initial load
-        loadGallery();
+        async function initViewer() {
+            await loadFolderOptions();
+            await loadGallery();
+        }
+
+        initViewer().catch((e) => {
+            el('gallery').innerHTML = `<div style="color:red;padding:20px">Viewer init failed / 初始化失败: ${e}</div>`;
+        });
 
     </script>
 </body>

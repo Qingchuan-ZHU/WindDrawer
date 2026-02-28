@@ -2,6 +2,8 @@
 models/
 outputs/
 stable-diffusion.cpp/
+!good_outputs/
+!good_outputs/**
 
 # uv & Python virtual environment
 .venv/
@@ -9,6 +11,10 @@ stable-diffusion.cpp/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Node / Electron
+node_modules/
+dist-electron/
 
 # uv lock file (可选：如果你希望其他人运行的版本和你完全一致，可以不忽略它)
 # uv.lock

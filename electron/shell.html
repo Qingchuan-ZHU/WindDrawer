@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WindDrawer Desktop</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --panel: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: rgba(15, 23, 42, .12);
+      --accent: #ec4899;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "PingFang SC", system-ui, sans-serif;
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100%;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 255, 255, .94);
+      backdrop-filter: blur(8px);
+    }
+
+    .title {
+      font-weight: 700;
+      font-size: 16px;
+      white-space: nowrap;
+    }
+
+    .spacer {
+      flex: 1;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      height: 34px;
+      padding: 0 12px;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .panes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 12px;
+      min-height: 0;
+    }
+
+    .pane {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--panel);
+      min-width: 0;
+    }
+
+    .pane-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      background: #fafafa;
+    }
+
+    .pane-title {
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .pane-url {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    .pane-head .spacer {
+      min-width: 8px;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fff;
+    }
+
+    @media (max-width: 1280px) {
+      .panes {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="title">WindDrawer Desktop</div>
+      <div class="spacer"></div>
+      <button id="reloadAllBtn" class="primary">Reload All</button>
+      <button id="openDrawerBtn">Drawer In Browser</button>
+      <button id="openViewerBtn">Viewer In Browser</button>
+    </header>
+
+    <main class="panes">
+      <section class="pane">
+        <div class="pane-head">
+          <div class="pane-title">Drawer</div>
+          <div class="spacer"></div>
+          <div id="drawerUrlText" class="pane-url"></div>
+          <button id="reloadDrawerBtn">Reload</button>
+        </div>
+        <iframe id="drawerFrame" title="Drawer"></iframe>
+      </section>
+
+      <section class="pane">
+        <div class="pane-head">
+          <div class="pane-title">Viewer</div>
+          <div class="spacer"></div>
+          <div id="viewerUrlText" class="pane-url"></div>
+          <button id="reloadViewerBtn">Reload</button>
+        </div>
+        <iframe id="viewerFrame" title="Viewer"></iframe>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const cfg = window.winddrawerDesktop || {};
+    const drawerUrl = cfg.drawerUrl || "http://127.0.0.1:17865/";
+    const viewerUrl = cfg.viewerUrl || "http://127.0.0.1:17866/";
+
+    const drawerFrame = document.getElementById("drawerFrame");
+    const viewerFrame = document.getElementById("viewerFrame");
+    const drawerUrlText = document.getElementById("drawerUrlText");
+    const viewerUrlText = document.getElementById("viewerUrlText");
+
+    function loadAll() {
+      drawerFrame.src = drawerUrl;
+      viewerFrame.src = viewerUrl;
+    }
+
+    function reloadFrame(frame, url) {
+      frame.src = url;
+    }
+
+    drawerUrlText.textContent = drawerUrl;
+    viewerUrlText.textContent = viewerUrl;
+    loadAll();
+
+    document.getElementById("reloadAllBtn").addEventListener("click", loadAll);
+    document.getElementById("reloadDrawerBtn").addEventListener("click", () => reloadFrame(drawerFrame, drawerUrl));
+    document.getElementById("reloadViewerBtn").addEventListener("click", () => reloadFrame(viewerFrame, viewerUrl));
+    document.getElementById("openDrawerBtn").addEventListener("click", () => cfg.openExternal && cfg.openExternal(drawerUrl));
+    document.getElementById("openViewerBtn").addEventListener("click", () => cfg.openExternal && cfg.openExternal(viewerUrl));
+
+    if (cfg.onReloadAll) {
+      cfg.onReloadAll(loadAll);
+    }
+  </script>
+</body>
+
+</html>
+

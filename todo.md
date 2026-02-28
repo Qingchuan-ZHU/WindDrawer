@@ -10,3 +10,4 @@
 
 ## 已完成
 - [x] 初始化 `agents.md`、`todo.md`、`log.md`（2026-02-27）。
+- [x] 增加 Electron 桌面壳（同窗显示 Drawer + Viewer，避免浏览器双开）（2026-02-28）。
