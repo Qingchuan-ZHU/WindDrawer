@@ -80,6 +80,17 @@
             padding: 0 10px;
         }
 
+        .folder-input {
+            min-width: 260px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #fff;
+            color: var(--text);
+            padding: 0 10px;
+            font-size: 13px;
+        }
+
         button {
             padding: 8px 16px;
             border-radius: 8px;
@@ -111,6 +122,11 @@
             }
 
             .folder-select {
+                flex: 1;
+                min-width: 150px;
+            }
+
+            .folder-input {
                 flex: 1;
                 min-width: 150px;
             }
@@ -412,6 +428,9 @@
         <div class="topbar-controls">
             <span class="folder-label">Folder / 文件夹</span>
             <select id="folderSelect" class="folder-select"></select>
+            <input id="customFolderInput" class="folder-input" type="text"
+                placeholder="D:\images 或 /data/images">
+            <button id="openFolderBtn">Open / 打开</button>
             <button id="refreshBtn">Refresh / 刷新</button>
         </div>
     </header>
@@ -435,8 +454,7 @@
                         <div class="label">Seed / 种子</div>
                         <div style="display:flex;gap:10px;align-items:center">
                             <div class="value" id="m-seed">-</div>
-                            <button class="copy-btn"
-                                onclick="copyText(document.getElementById('m-seed').textContent)">Copy</button>
+                            <button class="copy-btn" id="copySeedBtn">Copy</button>
                         </div>
                     </div>
                     <div class="info-item">
@@ -451,9 +469,8 @@
                         <div class="label">Prompt / 提示词</div>
                         <div style="position:relative">
                             <div class="value prompt" id="m-prompt">-</div>
-                            <button class="copy-btn"
-                                style="position:absolute;top:5px;right:5px;background:rgba(255,255,255,0.8)"
-                                onclick="copyText(document.getElementById('m-prompt').textContent)">Copy</button>
+                            <button class="copy-btn" id="copyPromptBtn"
+                                style="position:absolute;top:5px;right:5px;background:rgba(255,255,255,0.8)">Copy</button>
                         </div>
                     </div>
 
@@ -471,9 +488,19 @@
     <script>
         const el = id => document.getElementById(id);
 
-        async function fetchJSON(url) {
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(res.statusText);
+        async function fetchJSON(url, options = undefined) {
+            const res = await fetch(url, options);
+            if (!res.ok) {
+                const text = await res.text();
+                let detail = text || res.statusText;
+                try {
+                    const parsed = JSON.parse(text);
+                    detail = parsed.detail || detail;
+                } catch (_) {
+                    // Keep raw text when response is not JSON.
+                }
+                throw new Error(detail);
+            }
             return res.json();
         }
 
@@ -484,13 +511,40 @@
             setTimeout(() => t.classList.remove('show'), 2000);
         }
 
+        function fallbackCopyText(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            textarea.setSelectionRange(0, textarea.value.length);
+            const copied = document.execCommand('copy');
+            document.body.removeChild(textarea);
+            if (!copied) {
+                throw new Error('execCommand copy failed');
+            }
+        }
+
         async function copyText(text) {
-            if (!text) return;
+            const value = String(text || '').trim();
+            if (!value || value === '-') return;
             try {
-                await navigator.clipboard.writeText(text);
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(value);
+                } else {
+                    fallbackCopyText(value);
+                }
                 showToast('Copied / 已复制');
             } catch (err) {
-                showToast('Copy Failed / 复制失败');
+                try {
+                    fallbackCopyText(value);
+                    showToast('Copied / 已复制');
+                } catch (fallbackError) {
+                    showToast('Copy Failed / 复制失败');
+                }
             }
         }
 
@@ -508,10 +562,25 @@
             return `/api/metadata/${encodeURIComponent(filename)}?${buildFolderQuery(folder)}`;
         }
 
+        function ensureFolderOption(value, label) {
+            if (!value) return;
+            const folderSelect = el('folderSelect');
+            const existing = Array.from(folderSelect.options).find(option => option.value === value);
+            if (existing) {
+                if (label) existing.textContent = label;
+                return;
+            }
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label || value;
+            folderSelect.appendChild(option);
+        }
+
         async function loadFolderOptions() {
             const folderSelect = el('folderSelect');
             const res = await fetchJSON('/api/folders');
             const items = res.items || [];
+            const preferredFolder = currentFolder || res.current || '__default__';
 
             folderSelect.innerHTML = '';
             if (items.length === 0) {
@@ -524,16 +593,44 @@
             }
 
             for (const item of items) {
-                const option = document.createElement('option');
-                option.value = item.value;
-                option.textContent = item.label;
-                folderSelect.appendChild(option);
+                ensureFolderOption(item.value, item.label);
             }
 
-            const preferredFolder = res.current || currentFolder || '__default__';
             const hasPreferred = items.some(item => item.value === preferredFolder);
-            currentFolder = hasPreferred ? preferredFolder : items[0].value;
+            if (!hasPreferred && preferredFolder && preferredFolder !== '__default__') {
+                ensureFolderOption(preferredFolder, preferredFolder);
+                currentFolder = preferredFolder;
+            } else {
+                currentFolder = hasPreferred ? preferredFolder : items[0].value;
+            }
             folderSelect.value = currentFolder;
+            el('customFolderInput').value = currentFolder === '__default__' ? '' : currentFolder;
+        }
+
+        async function openCustomFolder() {
+            const input = el('customFolderInput');
+            const folderPath = input.value.trim();
+            if (!folderPath) {
+                showToast('Path Required / 请输入路径');
+                return;
+            }
+
+            try {
+                const res = await fetchJSON('/api/folders/open', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: folderPath }),
+                });
+
+                currentFolder = res.value || '__default__';
+                ensureFolderOption(currentFolder, res.label || currentFolder);
+                el('folderSelect').value = currentFolder;
+                input.value = res.path || folderPath;
+                await loadGallery();
+                showToast('Folder Opened / 已打开文件夹');
+            } catch (e) {
+                showToast(`Open Failed / 打开失败: ${e.message || e}`);
+            }
         }
 
         async function loadCardMetadata(filename, div, folder) {
@@ -673,9 +770,9 @@
             try {
                 const res = await fetchJSON(`/api/images?${buildFolderQuery(currentFolder)}`);
                 currentFolder = res.folder || currentFolder;
-                if (el('folderSelect').value !== currentFolder) {
-                    el('folderSelect').value = currentFolder;
-                }
+                ensureFolderOption(currentFolder, currentFolder);
+                if (el('folderSelect').value !== currentFolder) el('folderSelect').value = currentFolder;
+                el('customFolderInput').value = currentFolder === '__default__' ? '' : currentFolder;
                 currentItems = res.items || [];
                 if (currentItems.length === 0) {
                     gallery.innerHTML = '<div style="text-align:center;padding:40px;width:100%;color:#888;">No images found / 暂无图片</div>';
@@ -696,9 +793,25 @@
 
         el('folderSelect').addEventListener('change', () => {
             currentFolder = el('folderSelect').value || '__default__';
+            el('customFolderInput').value = currentFolder === '__default__' ? '' : currentFolder;
             loadGallery();
         });
+        el('openFolderBtn').addEventListener('click', openCustomFolder);
+        el('customFolderInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                openCustomFolder();
+            }
+        });
         el('refreshBtn').addEventListener('click', loadGallery);
+        el('copySeedBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            copyText(el('m-seed').textContent);
+        });
+        el('copyPromptBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            copyText(el('m-prompt').textContent);
+        });
 
         async function initViewer() {
             await loadFolderOptions();

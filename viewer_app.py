@@ -2,18 +2,19 @@ import os
 import json
 import uvicorn
 from urllib.parse import quote
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Set
 
 # Configuration
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.getenv("WINDDRAWER_OUTPUT_DIR") or os.path.join(BASE_DIR, "outputs")
 WEB_DIR = os.path.join(BASE_DIR, "web")
 DEFAULT_FOLDER_KEY = "__default__"
-PINNED_FOLDERS = {"outputs", "good_output", "good_outputs"}
+PINNED_FOLDERS = {"outputs"}
+CUSTOM_FOLDERS: Set[str] = set()
 
 app = FastAPI(title="WindDrawer Viewer")
 
@@ -25,24 +26,24 @@ def resolve_folder_path(folder: Optional[str]) -> Tuple[str, str]:
     if not folder or folder == DEFAULT_FOLDER_KEY:
         return OUTPUT_DIR, DEFAULT_FOLDER_KEY
 
-    folder_name = os.path.normpath(folder.strip())
-    if folder_name in ("", "."):
+    folder_name = folder.strip().strip('"').strip("'")
+    if folder_name in ("", ".", DEFAULT_FOLDER_KEY):
         return OUTPUT_DIR, DEFAULT_FOLDER_KEY
-    if os.path.isabs(folder_name):
-        raise HTTPException(status_code=400, detail="Absolute folder path is not allowed")
+    folder_name = os.path.expanduser(os.path.expandvars(folder_name))
 
-    full_path = os.path.abspath(os.path.join(BASE_DIR, folder_name))
-    base_path = os.path.abspath(BASE_DIR)
-    try:
-        in_repo = os.path.commonpath([full_path, base_path]) == base_path
-    except ValueError:
-        in_repo = False
-    if not in_repo:
-        raise HTTPException(status_code=400, detail="Invalid folder path")
+    if os.path.isabs(folder_name):
+        full_path = os.path.abspath(folder_name)
+    else:
+        full_path = os.path.abspath(os.path.join(BASE_DIR, folder_name))
+
+    if os.path.normcase(full_path) == os.path.normcase(os.path.abspath(OUTPUT_DIR)):
+        return os.path.abspath(OUTPUT_DIR), DEFAULT_FOLDER_KEY
     if not os.path.isdir(full_path):
         raise HTTPException(status_code=404, detail="Folder not found")
 
-    return full_path, folder_name.replace("\\", "/")
+    folder_value = full_path.replace("\\", "/")
+    CUSTOM_FOLDERS.add(folder_value)
+    return full_path, folder_value
 
 
 def has_png_files(folder_path: str) -> bool:
@@ -66,6 +67,39 @@ def default_folder_label() -> str:
     except ValueError:
         pass
     return f"{output_abs} (default)"
+
+
+def label_for_folder(folder_path: str) -> str:
+    folder_abs = os.path.abspath(folder_path)
+    base_abs = os.path.abspath(BASE_DIR)
+    try:
+        if os.path.commonpath([folder_abs, base_abs]) == base_abs:
+            return os.path.relpath(folder_abs, base_abs).replace("\\", "/")
+    except ValueError:
+        pass
+    return folder_abs
+
+
+def register_folder_item(
+    items: List[Dict[str, str]],
+    seen: Set[str],
+    folder_path: str,
+    label: Optional[str] = None,
+) -> None:
+    folder_abs = os.path.abspath(folder_path)
+    output_abs = os.path.abspath(OUTPUT_DIR)
+    if os.path.normcase(folder_abs) == os.path.normcase(output_abs):
+        return
+    if not os.path.isdir(folder_abs):
+        return
+
+    value = folder_abs.replace("\\", "/")
+    value_key = os.path.normcase(value)
+    if value_key in seen:
+        return
+
+    seen.add(value_key)
+    items.append({"value": value, "label": label or label_for_folder(folder_abs)})
 
 # Helper function to read metadata (copied/simplified from app_fastapi.py)
 def read_png_metadata(png_path: str) -> Dict[str, Any]:
@@ -114,7 +148,7 @@ def index():
 @app.get("/api/folders")
 def api_folders():
     items = [{"value": DEFAULT_FOLDER_KEY, "label": default_folder_label()}]
-    seen = {os.path.abspath(OUTPUT_DIR)}
+    seen: Set[str] = {os.path.normcase(os.path.abspath(OUTPUT_DIR).replace("\\", "/"))}
 
     try:
         with os.scandir(BASE_DIR) as it:
@@ -125,18 +159,35 @@ def api_folders():
                     continue
 
                 folder_abs = os.path.abspath(entry.path)
-                if folder_abs in seen:
-                    continue
-
-                folder_name = entry.name.replace("\\", "/")
                 if entry.name in PINNED_FOLDERS or has_png_files(entry.path):
-                    items.append({"value": folder_name, "label": folder_name})
+                    register_folder_item(items, seen, folder_abs, entry.name.replace("\\", "/"))
     except OSError:
         pass
+
+    for folder_path in sorted(CUSTOM_FOLDERS):
+        register_folder_item(items, seen, folder_path)
 
     fixed = items[:1]
     others = sorted(items[1:], key=lambda x: x["label"].lower())
     return {"current": DEFAULT_FOLDER_KEY, "items": fixed + others}
+
+
+@app.post("/api/folders/open")
+def api_open_folder(payload: Optional[Dict[str, str]] = Body(default=None)):
+    folder_path = str((payload or {}).get("path", "")).strip()
+    if not folder_path:
+        raise HTTPException(status_code=400, detail="Folder path is required")
+
+    _, folder_value = resolve_folder_path(folder_path)
+    if folder_value == DEFAULT_FOLDER_KEY:
+        return {
+            "value": DEFAULT_FOLDER_KEY,
+            "label": default_folder_label(),
+            "path": os.path.abspath(OUTPUT_DIR),
+        }
+
+    folder_abs = folder_value.replace("/", os.sep)
+    return {"value": folder_value, "label": label_for_folder(folder_abs), "path": folder_abs}
 
 
 @app.get("/api/images")
@@ -150,7 +201,7 @@ def api_images(folder: Optional[str] = Query(default=DEFAULT_FOLDER_KEY)):
             path = os.path.join(target_dir, name)
             try:
                 stat = os.stat(path)
-                image_url = f"/api/image/{quote(name)}?folder={quote(folder_value)}"
+                image_url = f"/api/image/{quote(name, safe='')}?folder={quote(folder_value, safe='')}"
                 items.append({
                     "filename": name,
                     "folder": folder_value,

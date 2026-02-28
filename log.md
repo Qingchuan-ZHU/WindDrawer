@@ -1,6 +1,10 @@
 # 变更日志
 
 ## 2026-02-28
+- Viewer 支持打开任意目录：后端新增 `POST /api/folders/open`，`resolve_folder_path` 放开绝对路径限制，并把手工打开目录纳入 `/api/folders` 返回列表。
+- Viewer 顶栏新增路径输入框与 `Open / 打开` 按钮，可直接输入本机绝对路径或项目内相对路径切换浏览。
+- 修复“直接点击复制提示词失败”：`copyText` 增加 `navigator.clipboard` 失败后的 `execCommand('copy')` 回退，并将弹窗复制按钮改为显式事件绑定。
+- `.gitignore` 改为忽略 `good_outputs/` 与 `good_results/`，并已通过历史重写彻底移除对应目录的历史对象。
 - 查看器新增输出目录切换能力：后端增加 `/api/folders`、`/api/image/{filename}`，并让 `/api/images`、`/api/metadata/{filename}` 支持 `folder` 参数。
 - 查看器页面顶部新增 `Folder / 文件夹` 下拉，可在默认输出目录与 `good_outputs` 等目录之间切换浏览。
 - `.gitignore` 显式放行 `good_outputs`（`!good_outputs/`、`!good_outputs/**`），确保该目录内容可被 Git 跟踪并同步到 GitHub。

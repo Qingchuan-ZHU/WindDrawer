@@ -1,9 +1,9 @@
 # Local model weights and outputs should never be committed
 models/
 outputs/
+good_outputs/
+good_results/
 stable-diffusion.cpp/
-!good_outputs/
-!good_outputs/**
 
 # uv & Python virtual environment
 .venv/

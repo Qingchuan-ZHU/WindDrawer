@@ -11,3 +11,6 @@
 ## 已完成
 - [x] 初始化 `agents.md`、`todo.md`、`log.md`（2026-02-27）。
 - [x] 增加 Electron 桌面壳（同窗显示 Drawer + Viewer，避免浏览器双开）（2026-02-28）。
+- [x] Viewer 支持手工输入任意目录路径并打开（2026-02-28）。
+- [x] 修复 Viewer 复制提示词失败：增加 Clipboard API 回退复制方案（2026-02-28）。
+- [x] 清理 `good_outputs/good_results` 并移除历史追踪（2026-02-28）。
